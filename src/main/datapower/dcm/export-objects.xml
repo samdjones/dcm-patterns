@@ -1,0 +1,6 @@
+<dcm:definition xmlns:dcm="urn:datapower:configuration:manager">
+	<dcm:export-manifest>
+		<export-object name="test-mpg" class="MultiProtocolGateway"
+			ref-objects="true" ref-files="false" />
+	</dcm:export-manifest>
+</dcm:definition>

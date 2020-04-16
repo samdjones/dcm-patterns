@@ -1,0 +1,8 @@
+<dcm:definition xmlns:dcm="urn:datapower:configuration:manager">
+
+	<dcm:deployment-policy> 
+		<modify-property name="HTTPSFSH_Foobar"
+			prop-name="LocalPort" new-prop-value="${deploy.listen.port}" />
+	</dcm:deployment-policy>
+
+</dcm:definition>

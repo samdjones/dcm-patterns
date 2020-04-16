@@ -1,0 +1,158 @@
+<project name="dcm-patterns" default="echo-properties" xmlns:props="antlib:ibm">
+
+	<macrodef name="assert-property" description="Assert that a property has been defined, fail if not">
+		<attribute name="name" />
+		<sequential>
+			<fail unless="@{name}">required property missing: @{name}</fail>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="dcm" description="Execute a DCM target">
+		<attribute name="target" />
+		<sequential>
+			<ant antfile="${dcm.script}" dir="${dcm.dir}" target="@{target}" />
+		</sequential>
+	</macrodef>
+
+	<!-- load environment-specific deployment property file -->
+	<property file="deploy.properties" />
+
+	<!-- assert input deployment properties all defined -->
+	<assert-property name="host" />
+	<assert-property name="domain" />
+	<assert-property name="port" />
+	<assert-property name="uid" />
+	<assert-property name="pwd" />
+	<assert-property name="dcm.dir" />
+
+	<!-- remainder of properties are inferred from input and/or static value -->
+
+	<property name="dcm.script" location="${dcm.dir}/deploy.ant.xml" />
+
+	<!-- DCM sometimes needs a work dir (and will create it if needed). 
+		Just keep a ref to it here so we can clean up -->
+	<property name="work.dir" location="tmp" />
+
+	<property name="src.dir" location="src" />
+	<property name="src.main.datapower.dir" location="${src.dir}/main/datapower" />
+	<property name="src.local.dir" location="${src.main.datapower.dir}/local" />
+	<property name="src.cert.dir" location="${src.main.datapower.dir}/cert" />
+	<property name="tmp.export.xcfg" location="${work.dir}/export.xcfg" />
+	<property name="src.export.xml" location="${src.main.datapower.dir}/export.xml" />
+	<property name="src.dcm.dir" location="${src.main.datapower.dir}/dcm" />
+	<property name="src.dcm.import" location="${src.dcm.dir}/import.xml" />
+	<property name="src.dcm.pre-import" location="${src.dcm.dir}/pre-import.xml" />
+	<property name="src.dcm.object-status" location="${src.dcm.dir}/object-status.xml" />
+	<property name="src.dcm.export-objects" location="${src.dcm.dir}/export-objects.xml" />
+
+	<target name="echo-properties" description="Echo input properties to the console for debugging">
+		<echoproperties>
+			<propertyset>
+				<propertyref name="dcm.dir" />
+				<propertyref name="host" />
+				<propertyref name="port" />
+				<propertyref name="domain" />
+				<propertyref name="uid" />
+				<propertyref name="pwd" />
+			</propertyset>
+		</echoproperties>
+		<echo>This is the default target, did you forget to specify one?</echo>
+	</target>
+
+	<target name="clean" description="Clean up any temporary dirs etc">
+		<!-- file created possibly due to a bug in DCM:object-status task -->
+		<delete file="@{capturesoma}" />
+		<delete dir="${work.dir}" />
+	</target>
+
+	<target name="prepare" description="Prepare for doing work by creating any temp dirs etc">
+		<!-- placeholder for now -->
+	</target>
+
+	<target name="create" depends="prepare" description="Create the domain (if needed)">
+		<dcm target="domain-create" />
+	</target>
+
+	<target name="check" depends="prepare" description="Check access to the device domain is accessible and that the userid/password works">
+		<dcm target="check-access" />
+	</target>
+
+	<target name="restart" depends="prepare" description="Restart the domain">
+		<dcm target="domain-restart" />
+	</target>
+
+	<target name="reset" depends="prepare" description="Reset the domain objects (but leave files intact)">
+		<dcm target="domain-reset" />
+	</target>
+
+	<target name="delete" depends="prepare" description="Delete the domain">
+		<dcm target="domain-delete" />
+	</target>
+
+	<target name="import-local-files" depends="create" description="Import local files">
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="upload-dir">
+			<property name="upload-dir.from" value="${src.local.dir}" />
+			<property name="upload-dir.to" value="local:///" />
+		</ant>
+	</target>
+
+	<target name="import-cert-files" depends="create" description="Import cert files">
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="upload-dir">
+			<property name="upload-dir.from" value="${src.cert.dir}" />
+			<property name="upload-dir.to" value="cert:///" />
+		</ant>
+	</target>
+
+	<target name="create-objects" depends="create" description="Create objects required by main export, e.g. Password Alias objects">
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="objects-from-def">
+			<property name="objects.file" value="${src.dcm.pre-import}" />
+		</ant>
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="save" />
+	</target>
+
+	<target name="import-objects" depends="create" description="Import the main export (object) config">
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="import-from-def">
+			<property name="import.file" value="${src.export.xml}" />
+			<property name="import.changes.file" value="${src.dcm.import}" />
+		</ant>
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="save" />
+	</target>
+
+	<target name="service-status" depends="prepare" description="Check the primary service objects are all up">
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="object-status">
+			<property name="object-status.file" location="${src.dcm.object-status}" />
+		</ant>
+	</target>
+
+	<target name="import-all" depends="import-cert-files, import-local-files, create-objects, import-objects, service-status" description="Import everything and check status" />
+
+	<target name="export-objects" depends="prepare" description="Export config objects">
+		<ant antfile="${dcm.script}" dir="${dcm.dir}" target="export-objects">
+			<!-- 
+				Note that setting the ref.files property to 'false' doesn't appear to work,
+				we get the files anyway, annoyingly bloating export.xcfg.
+				It appears to be a bug in either DCM or the DP firmware.
+				Be careful that there is no conflict between files exported/imported via export.xcfg and those
+				deployed via the 'deploy-local-files' task.
+				Note that only referenced files are included in export.xcfg, so this "problem" doesn't apply to all files.
+
+				TODO: another XSLT to remove files from export.xcfg (export to temp file first).
+			-->
+			<property name="ref.files" value="false" />
+			<property name="format" value="XML" />
+			<property name="export-manifest.file" location="${src.dcm.export-objects}" />
+			<property name="export.file" location="${tmp.export.xcfg}" />
+		</ant>
+		<!-- 
+			Note that export.xcfg will have some environment-specific values in it (port number for example).
+			So when one developer commits code after another (and they use differing ports as usual), there will be some
+			bogus diffs. They will be quite easy to spot as being non-code changes but ideally we would strip all 
+			environment-specific values from the cleaned audit export xml to completely eliminate bogus diffs.
+		-->
+
+		<!-- Clean and format the export xml for better diffs -->
+		<delete file="${src.export.xml}" />
+		<xslt in="${tmp.export.xcfg}" style="src/tools/datapower/xsl/export-clean.xsl" out="${src.export.xml}" />
+	</target>
+
+</project>

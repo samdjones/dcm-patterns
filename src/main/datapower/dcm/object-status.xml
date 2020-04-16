@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dcm:definition xmlns:dcm="urn:datapower:configuration:manager">
+	<dcm:object-state-manifest>
+		<dcm:object-state class="MultiProtocolGateway" name="test-mpg"
+			op-state="up" />
+	</dcm:object-state-manifest>
+</dcm:definition>

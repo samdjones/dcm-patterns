@@ -1,0 +1,11 @@
+<dcm:definition xmlns:dcm="urn:datapower:configuration:manager">
+
+	<dcm:object-create>
+		<PasswordAlias name="PMAFoobar">
+			<mAdminState>enabled</mAdminState>
+			<UserSummary></UserSummary>
+			<Password>${deploy.crypto.password}</Password>
+		</PasswordAlias>
+	</dcm:object-create>
+
+</dcm:definition>
