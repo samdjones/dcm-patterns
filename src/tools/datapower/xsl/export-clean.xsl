@@ -24,4 +24,8 @@
 		</export-details>
 	</xsl:template>
 
+	<xsl:template match="LocalPort">
+		<LocalPort>0</LocalPort>
+	</xsl:template>
+
 </xsl:stylesheet>
